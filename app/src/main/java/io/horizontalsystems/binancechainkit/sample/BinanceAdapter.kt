@@ -26,7 +26,7 @@ class BinanceAdapter(private val binanceChainKit: BinanceChainKit, tokenSymbol: 
         get() = asset.balanceFlowable.map { Unit }
 
     val transactionsFlowable: Flowable<Unit>
-        get() = asset.getTransactionsFlowable().map { Unit }
+        get() = asset.transactionsFlowable.map { Unit }
 
     val latestBlockFlowable: Flowable<Unit>
         get() = binanceChainKit.latestBlockFlowable.map { Unit }

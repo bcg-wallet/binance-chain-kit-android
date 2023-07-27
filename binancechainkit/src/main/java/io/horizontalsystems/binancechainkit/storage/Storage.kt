@@ -55,35 +55,17 @@ class Storage(private val database: KitDatabase) : IStorage {
         database.transactions.insertAll(transactions)
     }
 
-    override fun getTransaction(hash: String): Transaction? {
-        return database.transactions.getByHash(hash)
-    }
-
-    override fun getTransactions(
-        symbol: String,
-        fromAddress: String?,
-        toAddress: String?,
-        fromTransactionHash: String?,
-        limit: Int?
-    ): List<Transaction> {
+    override fun getTransactions(symbol: String, fromTransactionHash: String?, limit: Int?): List<Transaction> {
         var sql = "SELECT * FROM `Transaction` WHERE symbol = '$symbol'"
 
-        fromAddress?.let {
-            sql += " AND `from` = '$it'"
-        }
-
-        toAddress?.let {
-            sql += " AND `to` = '$it'"
-        }
-
         fromTransactionHash?.let {
-            database.transactions.getByHash(it)?.let { transaction ->
-                sql += " AND `blockTime` <= ${transaction.blockTime.time}"
-                sql += " AND `transactionId` <> '${transaction.transactionId}'"
+            database.transactions.getById(it)?.let { transaction ->
+                sql += " AND blockTime <= ${transaction.blockTime.time}"
+                sql += " AND transactionId <> '${transaction.transactionId}'"
             }
         }
 
-        sql += " ORDER BY `blockTime` DESC"
+        sql += " ORDER BY blockTime DESC"
 
         limit?.let {
             sql += " LIMIT $it"

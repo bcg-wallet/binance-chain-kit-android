@@ -2,7 +2,6 @@ package io.horizontalsystems.binancechainkit.managers
 
 import io.horizontalsystems.binancechainkit.core.api.BinanceChainApi
 import io.horizontalsystems.binancechainkit.core.IStorage
-import io.horizontalsystems.binancechainkit.core.api.BinanceError
 import io.horizontalsystems.binancechainkit.models.Balance
 import io.horizontalsystems.binancechainkit.models.LatestBlock
 import io.reactivex.Single
@@ -15,7 +14,7 @@ class BalanceManager(private val storage: IStorage, private val binanceApi: Bina
 
     interface Listener {
         fun onSyncBalances(balances: List<Balance>, latestBlock: LatestBlock)
-        fun onSyncBalanceFail(error: Throwable)
+        fun onSyncBalanceFail()
     }
 
     val latestBlock: LatestBlock? get() = storage.latestBlock
@@ -40,7 +39,7 @@ class BalanceManager(private val storage: IStorage, private val binanceApi: Bina
                 listener?.onSyncBalances(balancesToSync, latestBlock)
             }, {
                 it?.printStackTrace()
-                listener?.onSyncBalanceFail(it)
+                listener?.onSyncBalanceFail()
             })
             .let { disposables.add(it) }
     }
@@ -53,8 +52,8 @@ class BalanceManager(private val storage: IStorage, private val binanceApi: Bina
     {
         storage.latestBlock = latestBlock
 
-        val allStoredBalances = storage.getAllBalances()
-        val balancesToRemove = arrayListOf<Balance>()
+        var allStoredBalances = storage.getAllBalances()
+        var balancesToRemove = arrayListOf<Balance>()
 
         for (balance in allStoredBalances.orEmpty())
         {
@@ -74,14 +73,6 @@ class BalanceManager(private val storage: IStorage, private val binanceApi: Bina
     private fun getBalances(account: String): Single<Pair<List<Balance>, LatestBlock>> {
         val latestBlock = binanceApi.getLatestBlock()
         val balances = binanceApi.getBalances(account)
-            .onErrorResumeNext {
-                if ((it as? BinanceError)?.code == 404) {
-                    //New Account
-                    Single.just(listOf())
-                } else {
-                    Single.error(it.fillInStackTrace())
-                }
-            }
 
         return balances.zipWith(latestBlock, BiFunction<List<Balance>, LatestBlock, Pair<List<Balance>, LatestBlock>> { t1, t2 ->
             Pair(t1, t2)

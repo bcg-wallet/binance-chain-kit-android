@@ -5,10 +5,8 @@ import android.database.sqlite.SQLiteDatabase
 import io.horizontalsystems.binancechainkit.core.Asset
 import io.horizontalsystems.binancechainkit.core.Wallet
 import io.horizontalsystems.binancechainkit.core.api.BinanceChainApi
-import io.horizontalsystems.binancechainkit.core.api.BinanceError
 import io.horizontalsystems.binancechainkit.helpers.Crypto
 import io.horizontalsystems.binancechainkit.managers.BalanceManager
-import io.horizontalsystems.binancechainkit.models.TransactionFilterType
 import io.horizontalsystems.binancechainkit.managers.TransactionManager
 import io.horizontalsystems.binancechainkit.models.Balance
 import io.horizontalsystems.binancechainkit.models.LatestBlock
@@ -47,7 +45,7 @@ class BinanceChainKit(
     private val assets = mutableListOf<Asset>()
     private val latestBlockSubject = PublishSubject.create<LatestBlock>()
 
-    var syncState: SyncState = SyncState.NotSynced(Throwable("Initial State"))
+    var syncState: SyncState = SyncState.NotSynced
         set(value) {
             if (field != value) {
                 field = value
@@ -59,12 +57,11 @@ class BinanceChainKit(
     private val syncStateSubject = PublishSubject.create<SyncState>()
 
     fun register(symbol: String): Asset {
-        val newToken = Asset(symbol, account).apply {
+        val newToken = Asset(symbol).apply {
             this.balance = balanceManager.getBalance(symbol)?.amount ?: BigDecimal(0)
         }
 
         assets.add(newToken)
-        balanceManager.sync(account)
 
         return newToken
     }
@@ -106,20 +103,11 @@ class BinanceChainKit(
             }
     }
 
-    fun getTransaction(hash: String): TransactionInfo? {
-        return transactionManager.getTransaction(hash)?.let {
-            TransactionInfo(it)
-        }
-    }
+    fun transactions(asset: Asset, fromTransactionHash: String? = null, limit: Int? = null)
 
-    fun transactions(
-        asset: Asset,
-        filterType: TransactionFilterType? = null,
-        fromTransactionHash: String? = null,
-        limit: Int? = null
-    ): Single<List<TransactionInfo>> {
+            : Single<List<TransactionInfo>> {
         return transactionManager
-            .getTransactions(asset.symbol, filterType, fromTransactionHash, limit)
+            .getTransactions(asset.symbol, fromTransactionHash, limit)
             .map { list -> list.map { TransactionInfo(it) } }
     }
 
@@ -128,7 +116,7 @@ class BinanceChainKit(
 
         statusInfo["Synced Until"] = latestBlock?.time?.let { parseLastBlockDate(it) } ?: "N/A"
         statusInfo["Last Block Height"] = latestBlock?.height ?: "N/A"
-        statusInfo["Sync State"] = syncState.getName()
+        statusInfo["Sync State"] = syncState.name
         statusInfo["RPC Host"] = networkType.endpoint
 
         return statusInfo
@@ -160,12 +148,8 @@ class BinanceChainKit(
         syncState = SyncState.Synced
     }
 
-    override fun onSyncBalanceFail(error: Throwable) {
-        var throwable = error
-        if (error is BinanceError) {
-            throwable = Throwable(error.description())
-        }
-        syncState = SyncState.NotSynced(throwable)
+    override fun onSyncBalanceFail() {
+        syncState = SyncState.NotSynced
     }
 
     // TransactionManager Listener
@@ -185,18 +169,10 @@ class BinanceChainKit(
 
     // SyncState
 
-    sealed class SyncState {
-        object Synced : SyncState()
-        class NotSynced(val error: Throwable) : SyncState()
-        object Syncing : SyncState()
-
-        fun getName(): String {
-            return when (this) {
-                Synced -> "Synced"
-                Syncing -> "Syncing"
-                is NotSynced -> "Not Synced"
-            }
-        }
+    enum class SyncState {
+        Synced,
+        NotSynced,
+        Syncing
     }
 
     enum class NetworkType {
@@ -218,31 +194,13 @@ class BinanceChainKit(
     }
 
     companion object {
-        fun wallet(words: List<String>, passphrase: String, networkType: NetworkType): Wallet {
-            val seed = Mnemonic().toSeed(words, passphrase)
-            val hdWallet = HDWallet(seed, coinType = 714, purpose = HDWallet.Purpose.BIP44)
 
-            return Wallet(hdWallet, networkType)
-        }
-
-        fun instance(
-            context: Context,
-            words: List<String>,
-            passphrase: String,
-            walletId: String,
-            networkType: NetworkType = NetworkType.MainNet
-        ) = instance(context, Mnemonic().toSeed(words, passphrase), walletId, networkType)
-
-        fun instance(
-            context: Context,
-            seed: ByteArray,
-            walletId: String,
-            networkType: NetworkType = NetworkType.MainNet
-        ): BinanceChainKit {
+        fun instance(context: Context, words: List<String>, walletId: String,
+                     networkType: NetworkType = NetworkType.MainNet): BinanceChainKit {
             val database = KitDatabase.create(context, getDatabaseName(networkType, walletId))
             val storage = Storage(database)
 
-            val hdWallet = HDWallet(seed, coinType = 714, purpose = HDWallet.Purpose.BIP44)
+            val hdWallet = HDWallet(Mnemonic().toSeed(words), coinType = 714)
 
             val wallet = Wallet(hdWallet, networkType)
 
