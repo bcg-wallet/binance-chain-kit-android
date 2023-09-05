@@ -4,9 +4,8 @@ apply plugin: 'kotlin-kapt'
 apply plugin: 'com.google.protobuf'
 apply plugin: 'maven-publish'
 
-
 android {
-    compileSdkVersion 33
+    compileSdkVersion 28
 
     defaultConfig {
         minSdkVersion 23
@@ -30,14 +29,15 @@ android {
         }
     }
     kotlinOptions {
-        jvmTarget = '17'
+        jvmTarget = '1.8'
     }
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_17
-        targetCompatibility JavaVersion.VERSION_17
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
     }
 
-    namespace 'io.horizontalsystems.binancechainkit'
+    buildToolsVersion '28.0.3'
+
 }
 
 sourceSets {
